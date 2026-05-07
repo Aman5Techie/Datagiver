@@ -88,7 +88,7 @@
       <textarea id="editor" placeholder="Write anything..."></textarea>
       <div class="meta">
         <span id="conn" class="warn">Connecting…</span>
-        <span id="peers">People online: 1</span>
+        <span id="peers">People online: 0</span>
       </div>
     </main>
 
@@ -102,7 +102,8 @@
       const peers = document.getElementById('peers');
 
       const doc = new Y.Doc();
-      const room = 'datagiver-public-room-v1';
+      const roomKey = location.hash.replace('#', '').trim() || 'public';
+      const room = `datagiver-${roomKey}-v1`;
       const provider = new WebrtcProvider(room, doc);
       const yText = doc.getText('shared-content');
 
