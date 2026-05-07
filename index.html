@@ -95,6 +95,7 @@
     <script type="module">
       import * as Y from 'https://esm.sh/yjs@13.6.18';
       import { WebrtcProvider } from 'https://esm.sh/y-webrtc@10.3.0';
+      import { TextareaBinding } from 'https://esm.sh/y-textarea@1.0.1';
 
       const editor = document.getElementById('editor');
       const conn = document.getElementById('conn');
@@ -105,25 +106,7 @@
       const provider = new WebrtcProvider(room, doc);
       const yText = doc.getText('shared-content');
 
-      let writingRemote = false;
-      const render = () => {
-        writingRemote = true;
-        editor.value = yText.toString();
-        writingRemote = false;
-      };
-
-      render();
-
-      yText.observe(() => render());
-
-      editor.addEventListener('input', () => {
-        if (writingRemote) return;
-        const next = editor.value;
-        doc.transact(() => {
-          yText.delete(0, yText.length);
-          yText.insert(0, next);
-        });
-      });
+      new TextareaBinding(yText, editor);
 
       const updatePeers = () => {
         peers.textContent = `People online: ${provider.awareness.getStates().size || 1}`;

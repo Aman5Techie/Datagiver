@@ -2,7 +2,7 @@ name: Deploy static page
 
 on:
   push:
-    branches: ["main", "copilot/create-simple-frontend-website"]
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
