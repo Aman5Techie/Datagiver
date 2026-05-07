@@ -21,6 +21,7 @@ Open:
 3. Use:
    - **Build Command:** *(empty)*
    - **Start Command:** `python3 app.py`
+   - **Environment Variable:** `HOST=0.0.0.0`
 4. Deploy.
 
 Render will provide a public URL after deployment.

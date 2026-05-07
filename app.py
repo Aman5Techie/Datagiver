@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from threading import Lock
 from datetime import datetime, timezone
 from html import escape
 from http import HTTPStatus
@@ -7,10 +9,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 
-HOST = "0.0.0.0"
-PORT = 8000
+HOST = os.getenv("HOST", "127.0.0.1")
+PORT = int(os.getenv("PORT", "8000"))
 DATA_FILE = Path(__file__).with_name("messages.txt")
 MAX_MESSAGE_LENGTH = 2000
+MAX_POST_BODY_LENGTH = 8192
+MAX_DISPLAYED_MESSAGES = 100
+LOG_REQUESTS = os.getenv("LOG_REQUESTS", "0") == "1"
+FILE_LOCK = Lock()
 
 
 def save_message(raw_message: str) -> None:
@@ -20,8 +26,9 @@ def save_message(raw_message: str) -> None:
     message = message[:MAX_MESSAGE_LENGTH]
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    with DATA_FILE.open("a", encoding="utf-8") as file:
-        file.write(f"{timestamp}\t{message}\n")
+    with FILE_LOCK:
+        with DATA_FILE.open("a", encoding="utf-8") as file:
+            file.write(f"{timestamp}\t{message}\n")
 
 
 def load_messages() -> list[tuple[str, str]]:
@@ -29,12 +36,15 @@ def load_messages() -> list[tuple[str, str]]:
         return []
 
     messages: list[tuple[str, str]] = []
-    for line in DATA_FILE.read_text(encoding="utf-8").splitlines():
-        if "\t" not in line:
-            continue
-        timestamp, message = line.split("\t", 1)
-        messages.append((timestamp, message))
-    return messages[-100:]
+    with FILE_LOCK:
+        with DATA_FILE.open("r", encoding="utf-8") as file:
+            for line in file:
+                line = line.rstrip("\n")
+                if "\t" not in line:
+                    continue
+                timestamp, message = line.split("\t", 1)
+                messages.append((timestamp, message))
+    return messages[-MAX_DISPLAYED_MESSAGES:]
 
 
 def render_home_page() -> bytes:
@@ -51,7 +61,7 @@ def render_home_page() -> bytes:
 <head>
   <meta charset=\"utf-8\" />
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-  <title>Datagiver Wall</title>
+  <title>Datagiver - Shared Message Wall</title>
   <style>
     body {{ font-family: Arial, sans-serif; max-width: 780px; margin: 2rem auto; padding: 0 1rem; }}
     textarea {{ width: 100%; min-height: 120px; }}
@@ -62,7 +72,7 @@ def render_home_page() -> bytes:
   </style>
 </head>
 <body>
-  <h1>Datagiver Wall</h1>
+  <h1>Datagiver</h1>
   <p>Write a message once. Everyone who opens this site can see it.</p>
   <form method=\"post\" action=\"/submit\">
     <textarea name=\"content\" maxlength=\"{MAX_MESSAGE_LENGTH}\" placeholder=\"Write something...\" required></textarea>
@@ -97,22 +107,44 @@ class MessageBoardHandler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND, "Not Found")
             return
 
-        content_length = int(self.headers.get("Content-Length", "0"))
-        raw_payload = self.rfile.read(content_length).decode("utf-8", errors="ignore")
-        parsed_payload = parse_qs(raw_payload)
-        save_message(parsed_payload.get("content", [""])[0])
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self.send_error(HTTPStatus.BAD_REQUEST, "Invalid Content-Length")
+            return
+
+        if content_length < 0:
+            self.send_error(HTTPStatus.BAD_REQUEST, "Invalid Content-Length")
+            return
+
+        if content_length > MAX_POST_BODY_LENGTH:
+            self.send_error(
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                f"Payload too large. Maximum size: {MAX_POST_BODY_LENGTH} bytes",
+            )
+            return
+
+        if content_length > 0:
+            try:
+                raw_payload = self.rfile.read(content_length).decode("utf-8", errors="strict")
+            except UnicodeDecodeError:
+                self.send_error(HTTPStatus.BAD_REQUEST, "Invalid UTF-8 payload")
+                return
+            parsed_payload = parse_qs(raw_payload)
+            save_message(parsed_payload.get("content", [""])[0])
 
         self.send_response(HTTPStatus.SEE_OTHER)
         self.send_header("Location", "/")
         self.end_headers()
 
-    def log_message(self, format: str, *args: object) -> None:
-        return
+    def log_message(self, format_string: str, *args: object) -> None:
+        if LOG_REQUESTS:
+            super().log_message(format_string, *args)
 
 
 def run() -> None:
     server = ThreadingHTTPServer((HOST, PORT), MessageBoardHandler)
-    print(f"Server running at http://127.0.0.1:{PORT}")
+    print(f"Server running at http://{HOST}:{PORT}")
     server.serve_forever()
 
 
