@@ -109,7 +109,7 @@
       new TextareaBinding(yText, editor);
 
       const updatePeers = () => {
-        peers.textContent = `People online: ${provider.awareness.getStates().size || 1}`;
+        peers.textContent = `People online: ${provider.awareness.getStates().size}`;
       };
 
       provider.on('status', (event) => {
