@@ -102,7 +102,8 @@
       const peers = document.getElementById('peers');
 
       const doc = new Y.Doc();
-      const roomKey = location.hash.replace('#', '').trim() || 'public';
+      const rawRoomKey = location.hash.replace('#', '').trim().toLowerCase();
+      const roomKey = rawRoomKey.replace(/[^a-z0-9-]/g, '').slice(0, 40) || 'public';
       const room = `datagiver-${roomKey}-v1`;
       const provider = new WebrtcProvider(room, doc);
       const yText = doc.getText('shared-content');
