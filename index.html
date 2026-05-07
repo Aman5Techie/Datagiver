@@ -88,7 +88,7 @@
       <textarea id="editor" placeholder="Write anything..."></textarea>
       <div class="meta">
         <span id="conn" class="warn">Connecting…</span>
-        <span id="peers">People online: 0</span>
+        <span id="peers">Connected users: 0</span>
       </div>
     </main>
 
@@ -110,7 +110,7 @@
       new TextareaBinding(yText, editor);
 
       const updatePeers = () => {
-        peers.textContent = `People online: ${provider.awareness.getStates().size}`;
+        peers.textContent = `Connected users: ${provider.awareness.getStates().size}`;
       };
 
       provider.on('status', (event) => {
